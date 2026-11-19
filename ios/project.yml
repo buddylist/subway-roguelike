@@ -1,0 +1,25 @@
+# Generate the Xcode project with XcodeGen:  brew install xcodegen && xcodegen
+name: StandClear
+options:
+  bundleIdPrefix: com.buddylist
+  deploymentTarget:
+    iOS: "17.0"
+targets:
+  StandClear:
+    type: application
+    platform: iOS
+    sources: [StandClear]
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.buddylist.standclear
+        MARKETING_VERSION: "0.1"
+        CURRENT_PROJECT_VERSION: "1"
+        SWIFT_VERSION: "5.9"
+        TARGETED_DEVICE_FAMILY: "1"
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_KEY_UILaunchScreen_Generation: YES
+        INFOPLIST_KEY_CFBundleDisplayName: Stand Clear
+        INFOPLIST_KEY_NSLocationWhenInUseUsageDescription: "Stand Clear uses your location to figure out which station you're at."
+        INFOPLIST_KEY_NSLocationAlwaysAndWhenInUseUsageDescription: "With background location, the game keeps track of your ride while your phone is in your pocket."
+        INFOPLIST_KEY_UIBackgroundModes: location
+        INFOPLIST_KEY_UISupportedInterfaceOrientations: UIInterfaceOrientationPortrait
