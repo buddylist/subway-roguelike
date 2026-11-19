@@ -22,3 +22,10 @@ tailnet box and open `http://<box>:8000` from your phone (tailnet only).
 
 `DIFFICULTY` sets how fast the enemies get stronger each leg. At 1.0, a bot that buys
 anything it can afford wins about 60% of 9-stop commutes.
+
+## Fridge feed
+
+Ali wants finished runs on Tim's fridge. Open `index.html?fridge=<url>` and every
+finished run is POSTed to `<url>` as JSON (with a ready-made `message` line). Nothing
+listens yet: the plan is a small bridge on a `tag:pool` box that holds the SmartThings
+token and pushes the message to the fridge/TV. Without `?fridge=` it just logs to the console.

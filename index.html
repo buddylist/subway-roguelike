@@ -229,9 +229,23 @@ async function ride(){
   else { S.lives--; S.log.push(`You got shoved off the train. -1 swipe (${S.lives} left).`); }
   S.pos++;
   S.battle = null;
-  if(S.lives<=0){ S.phase="lost"; render(); return; }
-  if(S.pos >= S.route.length-1){ S.phase="won"; render(); return; }
+  if(S.lives<=0){ S.phase="lost"; publishRun(); render(); return; }
+  if(S.pos >= S.route.length-1){ S.phase="won"; publishRun(); render(); return; }
   enterStop();
+}
+
+// Ali: "when Tim's fridge is on the tailnet, publish results of runs to his fridge".
+// Open the game as index.html?fridge=http://<bridge-box>:<port>/beep and every finished run
+// gets POSTed there as JSON. The bridge (a tag:pool box with the SmartThings token) is TBD.
+const FRIDGE_URL = new URLSearchParams(location.search).get("fridge");
+function publishRun(){
+  const r = { line:S.line, from:S.route[0].name, to:S.route[S.route.length-1].name,
+              reached:S.route[Math.min(S.pos, S.route.length-1)].name, made:S.phase==="won",
+              wins:S.wins, swipesLeft:S.lives, crew:S.team.map(u=>`${u.em}${u.atk}/${u.hp}`).join(" "),
+              at:new Date().toISOString() };
+  r.message = `${r.made?"🏁":"💀"} ${r.line} train: ${r.from} → ${r.made?r.to:r.reached}, ${r.wins} wins. Crew: ${r.crew}`;
+  console.log("[fridge]", r.message);
+  if(FRIDGE_URL) fetch(FRIDGE_URL, {method:"POST", headers:{"content-type":"application/json"}, body:JSON.stringify(r)}).catch(()=>{});
 }
 
 function cleanup(side){
