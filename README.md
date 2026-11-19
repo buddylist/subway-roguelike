@@ -41,3 +41,37 @@ Open with `?fridge=<url>` and every finished run is POSTed there as JSON with a 
 `message`. Nothing listens yet: the plan is a small bridge on a `tag:pool` box with the SmartThings token.
 
 v1 (the commute auto-battler everyone agreed was bad) is in git history at `2bca5c4`.
+
+## iOS app (native, SwiftUI) — `ios/`
+
+Same idea as the web version, as a native app. Written on Linux, so **it has never been compiled**:
+expect a few build errors the first time and paste them to buddy.
+
+1. On a Mac with Xcode 15+: `brew install xcodegen && cd ios && xcodegen && open StandClear.xcodeproj`
+2. Xcode > target StandClear > Signing & Capabilities: pick your team (a free Apple ID works; the
+   app then expires on your phone after 7 days, TestFlight needs the $99/yr program).
+3. Plug in your phone, hit Run.
+
+- `Game/Model.swift`, `Game/Battle.swift`: units, station traits, a seeded auto-battle (same input,
+  same fight, so a replay matches what happened).
+- `Game/Game.swift`: one run. Board a train, `depart()` when the doors close, `arrive()` when they open, get off whenever.
+- `Ride/RideTracker.swift`: turns phone signals into doors closing/opening. Losing signal = tunnel,
+  getting it back = next stop; on elevated track a GPS fix near a station moves you there.
+- `Views/DebugPanel.swift` (🐞 button): mock mode. Lose/regain signal, teleport to a station, auto-ride.
+- `Net/GhostClient.swift`: async multiplayer. At each station your crew is uploaded and other
+  riders' crews for the next few rounds are prefetched, so tunnel fights work offline. Win the leg
+  into a station and you hold its turf (👑).
+- `Data/Stations.swift`: L, G and R from MTA open data. Add lines there.
+
+Without a backend URL the app plays against bots.
+
+## Backend (Modal) — `backend/app.py`
+
+Ghost crews, station turf and finished runs, stored in `modal.Dict`s. Scales to zero.
+
+    pip install modal && modal setup        # logs in to your Modal account, on your machine
+    modal deploy backend/app.py
+
+Put the printed `https://…modal.run` URL into `ios/project.yml` (`StandClearAPI`) and rerun
+`xcodegen`. Endpoints: `POST /teams`, `GET /ghosts?line=L&from=1&to=6`, `GET|POST /turf`,
+`GET|POST /runs` (Tim's fridge bridge can poll `GET /runs`). No auth: it's a toy.
