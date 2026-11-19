@@ -2,339 +2,43 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Stand Clear — subway auto-battler prototype</title>
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
+<meta name="theme-color" content="#111">
+<title>Stand Clear</title>
 <style>
-  :root { --bg:#111; --fg:#eee; --dim:#888; --card:#1e1e1e; --line:#a7a9ac; }
+  :root { --bg:#111; --panel:#1d1d1d; --fg:#eee; --dim:#8a8a8a; }
   * { box-sizing:border-box; }
-  body { margin:0; background:var(--bg); color:var(--fg); font:15px/1.4 system-ui, sans-serif; }
-  main { max-width:520px; margin:0 auto; padding:12px; }
-  h1 { font-size:20px; margin:4px 0 8px; }
-  .bullet { display:inline-flex; width:28px; height:28px; border-radius:50%; align-items:center; justify-content:center; font-weight:800; color:#fff; vertical-align:middle; }
-  .hud { display:flex; gap:12px; flex-wrap:wrap; color:var(--dim); margin-bottom:8px; }
-  .hud b { color:var(--fg); }
-  .route { display:flex; gap:4px; overflow-x:auto; padding:6px 0; margin-bottom:8px; }
-  .stop { flex:0 0 auto; font-size:11px; padding:2px 6px; border-radius:8px; background:#222; color:var(--dim); }
-  .stop.here { background:var(--line); color:#000; font-weight:700; }
-  .stop.done { opacity:.4; }
-  .row { display:flex; gap:6px; min-height:96px; margin:6px 0; }
-  .unit { flex:1 1 0; min-width:0; background:var(--card); border:1px solid #333; border-radius:10px; padding:6px; text-align:center; cursor:pointer; position:relative; }
-  .unit.empty { border-style:dashed; color:#444; cursor:default; }
-  .unit.sel { outline:2px solid var(--line); }
-  .unit .em { font-size:28px; }
-  .unit .nm { font-size:11px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-  .unit .st { font-weight:700; }
-  .unit .cost { position:absolute; top:2px; right:6px; font-size:11px; color:#fc0; }
-  .unit .lv { position:absolute; top:2px; left:6px; font-size:11px; color:#6cf; }
-  .unit.hit { animation:hit .25s; }
-  @keyframes hit { 50% { transform:translateX(4px); background:#522; } }
-  .unit.dead { opacity:.15; }
-  .label { font-size:12px; color:var(--dim); text-transform:uppercase; letter-spacing:.05em; margin-top:10px; }
-  .desc { font-size:13px; color:#ccc; min-height:38px; background:#181818; border-radius:8px; padding:6px 8px; margin:6px 0; }
-  .trait { background:#2a2410; border:1px solid #5a4a10; border-radius:8px; padding:6px 8px; font-size:13px; margin:6px 0; }
-  button { background:var(--line); color:#000; border:0; border-radius:10px; padding:10px 14px; font-weight:700; font-size:15px; cursor:pointer; }
-  button.sec { background:#333; color:var(--fg); }
+  body { margin:0; background:var(--bg); color:var(--fg); font:15px/1.35 Helvetica, Arial, sans-serif; }
+  main { max-width:560px; margin:0 auto; padding:10px 12px 40px; }
+  h1 { font-size:21px; margin:8px 0 4px; } h2 { font-size:15px; margin:12px 0 6px; }
+  .dim { color:var(--dim); font-size:13px; font-weight:normal; }
+  .bullet { display:inline-grid; place-items:center; width:24px; height:24px; border-radius:50%; font-weight:bold; font-size:13px; }
+  .bullet.big { width:38px; height:38px; font-size:20px; }
+  button { font:inherit; background:#333; color:var(--fg); border:1px solid #555; border-radius:8px; padding:7px 11px; margin:3px 2px; cursor:pointer; }
+  button.b { background:none; border:0; padding:2px; } button.on { background:#665; }
   button:disabled { opacity:.4; cursor:default; }
-  .btns { display:flex; gap:8px; flex-wrap:wrap; margin:8px 0; }
-  .log { font-size:12px; color:var(--dim); max-height:120px; overflow-y:auto; background:#181818; border-radius:8px; padding:6px 8px; }
-  select { background:#222; color:var(--fg); border:1px solid #444; border-radius:8px; padding:8px; font-size:15px; width:100%; margin:4px 0 10px; }
-  .vs { text-align:center; color:var(--dim); font-size:12px; }
+  button.go { background:#eee; color:#000; border:0; font-weight:bold; }
+  select { font:inherit; padding:6px; margin:4px 0; max-width:100%; background:#222; color:var(--fg); border:1px solid #555; border-radius:6px; }
+  .hud { display:flex; gap:10px; align-items:center; flex-wrap:wrap; position:sticky; top:0; background:var(--bg); padding:6px 0; z-index:2; }
+  .strip { display:flex; gap:0; overflow-x:auto; font-size:11px; color:var(--dim); margin:4px 0; }
+  .sn { flex:1; min-width:64px; text-align:center; } .sn .dot { width:12px; height:12px; border-radius:50%; border:2px solid #777; margin:0 auto 3px; }
+  .sn.here { color:#fff; font-weight:bold; } .sn.here .dot { background:#fff; border-color:#fff; box-shadow:0 0 8px #fff; }
+  .sn.left .dot { background:#555; } .sn.next { color:#fff; } .sn.next .dot { border-color:#fff; animation:blink 1s infinite; }
+  @keyframes blink { 50% { background:#fff; } }
+  .traits { display:grid; gap:4px; } .trait { background:var(--panel); border-left:3px solid #fc0; padding:5px 8px; border-radius:4px; font-size:13px; }
+  .row { display:flex; gap:6px; flex-wrap:wrap; }
+  .unit { width:96px; background:#262626; border:1px solid #444; border-radius:8px; padding:6px 4px; text-align:center; font-size:12px; position:relative; }
+  .unit .e { font-size:28px; } .unit .s { font-weight:bold; font-size:13px; } .unit .nm { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .unit.dead { opacity:.25; } .unit.hit { animation:hit .3s; }
+  @keyframes hit { 50% { transform:translateX(4px); background:#622; } }
+  .unit .lvl { position:absolute; top:2px; right:4px; color:gold; } .unit .ab { color:var(--dim); font-size:10px; min-height:26px; }
+  .vs { text-align:center; color:var(--dim); margin:4px 0; }
+  .log { font-family:Menlo, monospace; font-size:11px; height:130px; overflow:auto; background:#000; padding:6px; border-radius:6px; margin:8px 0; }
+  .panel { background:var(--panel); border-radius:10px; padding:10px; margin:8px 0; }
+  .mock { margin-top:16px; padding:8px; border:1px dashed #a6f; border-radius:8px; font-size:13px; }
 </style>
 </head>
-<body>
-<main id="app"></main>
-<script>
-// ---------------------------------------------------------------- data
-const LINES = {
-  L: { color:"#a7a9ac", stops:[
-    ["8 Av","hub"],["6 Av","hub"],["14 St-Union Sq","hub"],["3 Av"],["1 Av","pizza"],
-    ["Bedford Av","artsy"],["Lorimer St","hub"],["Graham Av","bodega"],["Grand St"],["Montrose Av"],
-    ["Morgan Av","artsy"],["Jefferson St","artsy"],["DeKalb Av"],["Myrtle-Wyckoff Avs","hub"],["Halsey St"],
-    ["Wilson Av","deep"],["Bushwick Av-Aberdeen St"],["Broadway Junction","hub"],["Atlantic Av"],["Sutter Av"],
-    ["Livonia Av"],["New Lots Av"],["E 105 St"],["Canarsie-Rockaway Pkwy","terminal"]]},
-  R: { color:"#fccc0a", stops:[
-    ["Forest Hills-71 Av","terminal"],["67 Av"],["63 Dr-Rego Park"],["Woodhaven Blvd"],["Grand Av-Newtown"],
-    ["Elmhurst Av","pizza"],["Jackson Hts-Roosevelt Av","hub"],["65 St"],["Northern Blvd"],["46 St"],
-    ["Steinway St","bodega"],["36 St"],["Queens Plaza","hub"],["Lexington Av/59 St","hub"],["5 Av/59 St","touristy"],
-    ["57 St-7 Av","touristy"],["49 St","touristy"],["Times Sq-42 St","chaos"],["34 St-Herald Sq","touristy"],["28 St"],
-    ["23 St"],["14 St-Union Sq","hub"],["8 St-NYU","artsy"],["Prince St","artsy"],["Canal St","knockoff"],
-    ["City Hall"],["Cortlandt St"],["Rector St"],["Whitehall St","deep"],["Court St","hub"],
-    ["Jay St-MetroTech","hub"],["DeKalb Av"],["Atlantic Av-Barclays Ctr","hub"],["Union St"],["4 Av-9 St","pizza"],
-    ["Prospect Av"],["25 St"],["36 St","hub"],["45 St"],["53 St"],["59 St","hub"],["Bay Ridge Av"],["77 St"],["86 St","pizza"],
-    ["Bay Ridge-95 St","terminal"]]},
-  G: { color:"#6cbe45", stops:[
-    ["Court Sq","hub"],["21 St"],["Greenpoint Av","bodega"],["Nassau Av","pizza"],["Metropolitan Av","hub"],
-    ["Broadway"],["Flushing Av"],["Myrtle-Willoughby Avs"],["Bedford-Nostrand Avs"],["Classon Av"],
-    ["Clinton-Washington Avs","artsy"],["Fulton St"],["Hoyt-Schermerhorn Sts","hub"],["Bergen St"],["Carroll St"],
-    ["Smith-9 Sts","deep"],["4 Av-9 St"],["7 Av"],["15 St-Prospect Park"],["Fort Hamilton Pkwy"],["Church Av","terminal"]]},
-};
-
-const TRAITS = {
-  hub:      { name:"Transfer hub",   text:"Big station, big shop: 5 units for sale instead of 4." },
-  artsy:    { name:"Artsy",          text:"The first reroll is free. Buskers and Dancers get +1/+1." },
-  bodega:   { name:"Bodega on the corner", text:"Bodega Cats cost 1 and always show up." },
-  pizza:    { name:"Dollar slice",   text:"Pizza Rats cost 1. Everyone in your car heals to full." },
-  touristy: { name:"Tourist trap",   text:"Everything costs +1, but you pick up +2 gold from lost tourists." },
-  chaos:    { name:"Times Square",   text:"Total chaos: prices are random from 1 to 5, and you get a free Showtime Dancer if there's room." },
-  knockoff: { name:"Canal St",       text:"Knockoffs: everything costs 1, but units bought here get -1 HP." },
-  deep:     { name:"Deep station",   text:"Long escalators. Units bought here get +2 HP." },
-  terminal: { name:"End of the line", text:"Rare commuters show up here." },
-  plain:    { name:"Just a stop",    text:"Nothing special. Stand clear of the closing doors." },
-};
-
-// tier: 1 common .. 3 rare. abilities are hooks: start(self, allies, enemies, log), hurt, die, after.
-const UNITS = {
-  cat:     { em:"🐈", name:"Bodega Cat", atk:2, hp:3, tier:1, text:"When hurt, gains +2 attack." ,
-             hurt(u){ u.atk+=2*u.lv; return `${u.name} hisses (+${2*u.lv} atk)`; } },
-  rat:     { em:"🐀", name:"Pizza Rat", atk:1, hp:2, tier:1, text:"Dies: leaves a 2/2 Slice in its place.",
-             die(u,al){ return { spawn: mk("slice",u.lv), msg:`${u.name} drops a slice` }; } },
-  slice:   { em:"🍕", name:"Slice", atk:2, hp:2, tier:0, text:"A dollar slice. Still warm." },
-  dancer:  { em:"🕺", name:"Showtime Dancer", atk:2, hp:2, tier:1, text:"Start of battle: kicks a random enemy for 2.",
-             start(u,al,en){ const t=rand(en.filter(x=>x.hp>0)); if(!t) return; t.hp-=2*u.lv; return `${u.name}: "SHOWTIME!" kicks ${t.name} for ${2*u.lv}`; } },
-  manspreader:{ em:"🧍", name:"Manspreader", atk:1, hp:7, tier:1, text:"Takes up space. Very hard to move." },
-  swiper:  { em:"💳", name:"MetroCard Swiper", atk:1, hp:3, tier:1, text:"After a battle: +1 gold. (Swipe again.)",
-             after(u){ return { gold:u.lv, msg:`${u.name} finds $${u.lv}` }; } },
-  busker:  { em:"🎷", name:"Busker", atk:1, hp:3, tier:2, text:"Start of battle: all allies +1 attack.",
-             start(u,al){ al.forEach(a=>a.atk+=u.lv); return `${u.name} plays, allies +${u.lv} atk`; } },
-  preacher:{ em:"📢", name:"Subway Preacher", atk:2, hp:4, tier:2, text:"Start of battle: the front ally gets +3 HP.",
-             start(u,al){ al[0].hp+=3*u.lv; return `${u.name} blesses ${al[0].name} (+${3*u.lv} hp)`; } },
-  courier: { em:"🚲", name:"Delivery Guy", atk:4, hp:2, tier:2, text:"Start of battle: hits the back enemy for 3.",
-             start(u,al,en){ const live=en.filter(x=>x.hp>0); const t=live[live.length-1]; if(!t) return; t.hp-=3*u.lv; return `${u.name} clips ${t.name} for ${3*u.lv}`; } },
-  conductor:{ em:"🧢", name:"Conductor", atk:3, hp:5, tier:3, text:"Start of battle: every ally +1/+1. Stand clear.",
-             start(u,al){ al.forEach(a=>{a.atk+=u.lv;a.hp+=u.lv;}); return `${u.name}: "Stand clear!" allies +${u.lv}/+${u.lv}`; } },
-  boss_rat:{ em:"🐁", name:"Rat King", atk:5, hp:6, tier:3, text:"Dies: summons two Pizza Rats.",
-             die(u){ return { spawn: mk("rat",u.lv), spawn2: mk("rat",u.lv), msg:`${u.name} falls, the rats scatter` }; } },
-};
-
-// ---------------------------------------------------------------- helpers
-const rand = a => a[Math.floor(Math.random()*a.length)];
-const DIFFICULTY = 1.0; // enemy stat growth per leg; tune me
-const COST = 3, MAX_TEAM = 5, START_GOLD = 10, LIVES = 3;
-let uid = 0;
-function mk(key, lv=1){ const b=UNITS[key]; return { id:++uid, key, em:b.em, name:b.name, atk:b.atk*lv, hp:b.hp*lv, maxhp:b.hp*lv, lv, xp:0, cost:COST }; }
-function pool(tierMax){ return Object.keys(UNITS).filter(k=>UNITS[k].tier>0 && UNITS[k].tier<=tierMax); }
-
-// ---------------------------------------------------------------- state
-let S = null;
-function newRun(line, from, to){
-  const all = LINES[line].stops;
-  let leg = from<to ? all.slice(from,to+1) : all.slice(to,from+1).reverse();
-  S = { line, route:leg.map(([n,t])=>({name:n, trait:t||"plain"})), pos:0, gold:START_GOLD, lives:LIVES,
-        team:[], shop:[], sel:null, phase:"shop", log:[], rerolledFree:false, wins:0 };
-  enterStop();
-}
-
-function enterStop(){
-  const st = S.route[S.pos], t = st.trait;
-  S.phase = "shop"; S.rerolledFree = false; S.sel = null;
-  S.gold = Math.max(S.gold, 0) + (S.pos===0 ? 0 : 10);
-  if(t==="touristy") S.gold += 2;
-  if(t==="pizza") S.team.forEach(u=>u.hp=u.maxhp);
-  if(t==="chaos" && S.team.length<MAX_TEAM) S.team.push(mk("dancer"));
-  stockShop();
-  render();
-}
-
-function stockShop(){
-  const st = S.route[S.pos], t = st.trait;
-  const n = t==="hub" ? 5 : 4;
-  const tierMax = t==="terminal" ? 3 : Math.min(3, 1 + Math.floor(S.pos/3));
-  S.shop = [];
-  for(let i=0;i<n;i++){
-    let key = rand(pool(tierMax));
-    if(t==="terminal" && i===0) key = rand(pool(3).filter(k=>UNITS[k].tier===3));
-    if(t==="bodega" && i===0) key = "cat";
-    const u = mk(key);
-    if(t==="touristy") u.cost = COST+1;
-    if(t==="knockoff"){ u.cost = 1; u.hp = Math.max(1,u.hp-1); u.maxhp=u.hp; }
-    if(t==="chaos") u.cost = 1+Math.floor(Math.random()*5);
-    if(t==="bodega" && key==="cat") u.cost = 1;
-    if(t==="pizza" && key==="rat") u.cost = 1;
-    if(t==="deep"){ u.hp+=2; u.maxhp+=2; }
-    if(t==="artsy" && (key==="busker"||key==="dancer")){ u.atk++; u.hp++; u.maxhp++; }
-    S.shop.push(u);
-  }
-}
-
-// ---------------------------------------------------------------- shop actions
-function buy(i){
-  const u = S.shop[i]; if(!u || S.gold < u.cost) return;
-  const same = S.team.find(x=>x.key===u.key);
-  if(same){ // merge: 2 copies = level up
-    S.gold -= u.cost; S.shop.splice(i,1);
-    same.lv++; same.atk+=UNITS[u.key].atk; same.hp+=UNITS[u.key].hp; same.maxhp+=UNITS[u.key].hp;
-  } else if(S.team.length < MAX_TEAM){
-    S.gold -= u.cost; S.shop.splice(i,1); S.team.push(u);
-  }
-  S.sel = null; render();
-}
-function sell(){ if(S.sel==null) return; const u=S.team[S.sel]; S.gold += u.lv; S.team.splice(S.sel,1); S.sel=null; render(); }
-function moveSel(d){
-  const i=S.sel, j=i+d; if(i==null||j<0||j>=S.team.length) return;
-  [S.team[i],S.team[j]]=[S.team[j],S.team[i]]; S.sel=j; render();
-}
-function reroll(){
-  const free = S.route[S.pos].trait==="artsy" && !S.rerolledFree;
-  if(!free && S.gold<1) return;
-  if(free) S.rerolledFree = true; else S.gold--;
-  stockShop(); render();
-}
-
-// ---------------------------------------------------------------- battle
-function enemyWave(){
-  const leg = S.pos+1, n = Math.min(MAX_TEAM, 2 + Math.floor(leg/2));
-  const tierMax = Math.min(3, 1 + Math.floor(leg/3));
-  const isLast = S.pos+1 === S.route.length-1;
-  const wave = [];
-  for(let i=0;i<n;i++){
-    const u = mk(rand(pool(tierMax)));
-    u.atk += Math.floor(leg*DIFFICULTY/2); u.hp += Math.floor(leg*DIFFICULTY); u.maxhp = u.hp;
-    wave.push(u);
-  }
-  if(isLast){ const b=mk("boss_rat", 1+Math.floor(leg/6)); b.hp+=leg; b.maxhp=b.hp; wave.unshift(b); }
-  return wave;
-}
-
-async function ride(){
-  if(!S.team.length) return;
-  S.phase = "battle";
-  const saved = S.team.map(u=>({...u}));
-  const al = S.team.map(u=>({...u})), en = enemyWave();
-  S.battle = { al, en }; S.log = [`Doors closing. Next stop: ${S.route[S.pos+1].name}`];
-  render(); await sleep(600);
-
-  const fire = (side, other, hook) => side.forEach(u=>{ if(u.hp>0 && UNITS[u.key][hook]){ const m=UNITS[u.key][hook](u,side,other); if(m) S.log.push(m);} });
-  fire(al,en,"start"); fire(en,al,"start");
-  cleanup(al); cleanup(en); render(); await sleep(500);
-
-  let rounds=0;
-  while(al.length && en.length && rounds++<60){
-    const a=al[0], e=en[0];
-    a.hp-=e.atk; e.hp-=a.atk;
-    S.log.push(`${a.em}${a.name} ⚔ ${e.em}${e.name}`);
-    for(const [u,side,other] of [[a,al,en],[e,en,al]]){
-      if(u.hp>0 && UNITS[u.key].hurt){ S.log.push(UNITS[u.key].hurt(u)); }
-    }
-    S.hit=[a.id,e.id]; render(); await sleep(450); S.hit=null;
-    cleanup(al); cleanup(en); render(); await sleep(200);
-  }
-
-  const won = !en.length && al.length>0, draw = !en.length && !al.length;
-  // the run keeps your bought team, not battle buffs. Survivors stay hurt until a pizza stop.
-  S.team = saved.map(u=>{ const live=al.find(x=>x.id===u.id); if(live) u.hp=Math.min(u.maxhp, Math.max(1, live.hp)); else u.hp=Math.max(1, Math.ceil(u.maxhp/2)); return u; });
-  S.team.forEach(u=>{ const h=UNITS[u.key].after; if(h){ const r=h(u); S.gold+=r.gold; S.log.push(r.msg);} });
-
-  if(won) { S.wins++; S.log.push("You made it to the stop."); }
-  else if(draw) S.log.push("Everyone's down. Call it a draw.");
-  else { S.lives--; S.log.push(`You got shoved off the train. -1 swipe (${S.lives} left).`); }
-  S.pos++;
-  S.battle = null;
-  if(S.lives<=0){ S.phase="lost"; publishRun(); render(); return; }
-  if(S.pos >= S.route.length-1){ S.phase="won"; publishRun(); render(); return; }
-  enterStop();
-}
-
-// Ali: "when Tim's fridge is on the tailnet, publish results of runs to his fridge".
-// Open the game as index.html?fridge=http://<bridge-box>:<port>/beep and every finished run
-// gets POSTed there as JSON. The bridge (a tag:pool box with the SmartThings token) is TBD.
-const FRIDGE_URL = new URLSearchParams(location.search).get("fridge");
-function publishRun(){
-  const r = { line:S.line, from:S.route[0].name, to:S.route[S.route.length-1].name,
-              reached:S.route[Math.min(S.pos, S.route.length-1)].name, made:S.phase==="won",
-              wins:S.wins, swipesLeft:S.lives, crew:S.team.map(u=>`${u.em}${u.atk}/${u.hp}`).join(" "),
-              at:new Date().toISOString() };
-  r.message = `${r.made?"🏁":"💀"} ${r.line} train: ${r.from} → ${r.made?r.to:r.reached}, ${r.wins} wins. Crew: ${r.crew}`;
-  console.log("[fridge]", r.message);
-  if(FRIDGE_URL) fetch(FRIDGE_URL, {method:"POST", headers:{"content-type":"application/json"}, body:JSON.stringify(r)}).catch(()=>{});
-}
-
-function cleanup(side){
-  for(let i=0;i<side.length;i++){
-    const u=side[i];
-    if(u.hp<=0){
-      side.splice(i,1);
-      const h=UNITS[u.key].die;
-      if(h){ const r=h(u,side); S.log.push(r.msg); const add=[r.spawn,r.spawn2].filter(Boolean); side.splice(i,0,...add.slice(0, MAX_TEAM-side.length)); i+=add.length; }
-      i--;
-    }
-  }
-}
-const sleep = ms => new Promise(r=>setTimeout(r,ms));
-
-// ---------------------------------------------------------------- render
-const $app = document.getElementById("app");
-function bullet(l){ return `<span class="bullet" style="background:${LINES[l].color};color:${l==="R"?"#000":"#fff"}">${l}</span>`; }
-function card(u, opts={}){
-  if(!u) return `<div class="unit empty"></div>`;
-  const cls = ["unit"]; if(opts.sel) cls.push("sel"); if(S.hit&&S.hit.includes(u.id)) cls.push("hit");
-  return `<div class="${cls.join(" ")}" ${opts.on?`onclick="${opts.on}"`:""}>
-    ${opts.cost!=null?`<span class="cost">$${opts.cost}</span>`:""}${u.lv>1?`<span class="lv">L${u.lv}</span>`:""}
-    <div class="em">${u.em}</div><div class="nm">${u.name}</div><div class="st">${u.atk}⚔ ${Math.max(0,u.hp)}♥</div></div>`;
-}
-function rowOf(list, f){ let h=""; for(let i=0;i<MAX_TEAM;i++) h+=f(list[i],i); return `<div class="row">${h}</div>`; }
-
-function render(){
-  if(!S) return renderStart();
-  const st = S.route[S.pos], nxt = S.route[S.pos+1];
-  let h = `<h1>${bullet(S.line)} Stand Clear</h1>
-    <div class="hud"><span>💰 <b>${S.gold}</b></span><span>🎟 swipes <b>${S.lives}</b></span><span>🏁 ${S.pos}/${S.route.length-1}</span></div>
-    <div class="route">${S.route.map((s,i)=>`<span class="stop ${i===S.pos?"here":i<S.pos?"done":""}">${s.name}</span>`).join("")}</div>`;
-
-  if(S.phase==="battle"){
-    const {al,en}=S.battle;
-    h += `<div class="label">Between ${st.name} → ${nxt.name}</div>
-      ${rowOf(en.slice().reverse(), u=>card(u))}<div class="vs">▲ them · you ▼</div>${rowOf(al, u=>card(u))}
-      <div class="log" id="log">${S.log.map(x=>`<div>${x}</div>`).join("")}</div>`;
-  } else if(S.phase==="won" || S.phase==="lost"){
-    h += `<div class="label">${S.phase==="won"?"You made it":"Run over"}</div>
-      <div class="desc">${S.phase==="won"?`You reached ${S.route[S.route.length-1].name} with ${S.lives} swipes left. Commute complete.`:`Out of swipes somewhere around ${st.name}. Should've taken a cab.`}</div>
-      <div class="log">${S.log.slice(-6).map(x=>`<div>${x}</div>`).join("")}</div>
-      <div class="btns"><button onclick="S=null;render()">New commute</button></div>`;
-  } else {
-    const T = TRAITS[st.trait], sel = S.sel!=null ? S.team[S.sel] : null;
-    const freeRe = st.trait==="artsy" && !S.rerolledFree;
-    h += `<div class="label">Now at ${st.name}</div>
-      <div class="trait"><b>${T.name}.</b> ${T.text}</div>
-      <div class="label">Shop · tap to buy, buy a duplicate to level up</div>
-      ${rowOf(S.shop, (u,i)=>card(u,{cost:u&&u.cost, on:u?`buy(${i})`:""}))}
-      <div class="btns"><button class="sec" onclick="reroll()" ${!freeRe&&S.gold<1?"disabled":""}>Reroll ${freeRe?"(free)":"$1"}</button></div>
-      <div class="label">Your car · front is left · tap to select</div>
-      ${rowOf(S.team, (u,i)=>card(u,{sel:i===S.sel, on:u?`S.sel=${i===S.sel?"null":i};render()`:""}))}
-      <div class="desc">${sel?`<b>${sel.name}</b> (L${sel.lv}): ${UNITS[sel.key].text}`:"Select one of your commuters to see what it does, move it or sell it."}</div>
-      <div class="btns">
-        <button class="sec" onclick="moveSel(-1)" ${!sel?"disabled":""}>◀</button>
-        <button class="sec" onclick="moveSel(1)" ${!sel?"disabled":""}>▶</button>
-        <button class="sec" onclick="sell()" ${!sel?"disabled":""}>Sell +$${sel?sel.lv:1}</button>
-        <button onclick="ride()" ${!S.team.length?"disabled":""} style="margin-left:auto">Ride to ${nxt.name} ▶</button>
-      </div>`;
-  }
-  $app.innerHTML = h;
-  const lg=document.getElementById("log"); if(lg) lg.scrollTop=lg.scrollHeight;
-}
-
-function renderStart(){
-  const opts = l => LINES[l].stops.map((s,i)=>`<option value="${i}">${s[0]}</option>`).join("");
-  $app.innerHTML = `<h1>Stand Clear</h1>
-    <div class="desc">A subway auto-battler. Between stops your car fights whoever's on the train. At every stop there's a shop, and every station's shop is different. Lose 3 fights and you're out of swipes.</div>
-    <div class="label">Line</div>
-    <select id="line" onchange="pickLine()">${Object.keys(LINES).map(l=>`<option>${l}</option>`).join("")}</select>
-    <div class="label">From</div><select id="from"></select>
-    <div class="label">To</div><select id="to"></select>
-    <div class="btns"><button onclick="start()">Swipe in</button></div>`;
-  pickLine();
-}
-function pickLine(){
-  const l=document.getElementById("line").value, st=LINES[l].stops;
-  const o=st.map((s,i)=>`<option value="${i}">${s[0]}</option>`).join("");
-  document.getElementById("from").innerHTML=o; document.getElementById("to").innerHTML=o;
-  document.getElementById("to").value = Math.min(st.length-1, 9);
-}
-function start(){
-  const l=document.getElementById("line").value, f=+document.getElementById("from").value, t=+document.getElementById("to").value;
-  if(Math.abs(f-t)<3){ alert("Pick a commute at least 3 stops long."); return; }
-  newRun(l,f,t);
-}
-render();
-</script>
+<body><main id="app">Loading the map…</main>
+<script type="module" src="game.js"></script>
 </body>
 </html>
