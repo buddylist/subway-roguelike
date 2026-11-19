@@ -1,144 +1,185 @@
-import Foundation
 import CoreLocation
+import Foundation
 import Network
 
-/// Turns phone signals into ride events. Underground you lose signal between stations,
-/// so "lost network" means the train left and "got it back" means you pulled into the next stop.
-/// Above ground GPS works, so we use distance to the nearest station on your line instead.
-/// Real sensors and the debug panel both feed `handle(_:)`, so everything can be tested from the couch.
+/// Raw things the phone notices. Live ones come from GPS + the network stack, mock ones from the debug panel.
 enum RideSignal {
-    case location(lat: Double, lon: Double, speed: Double)   // speed in m/s, negative if unknown
-    case network(online: Bool)
-    case forceDepart
-    case forceArrive(stationId: String?)                     // nil = next stop
+    case network(Bool)
+    case location(lat: Double, lon: Double, accuracy: Double)
 }
 
-enum RideEvent {
-    case departed(fromIndex: Int)
-    case arrived(atIndex: Int)
+protocol RideSource: AnyObject {
+    var onSignal: ((RideSignal) -> Void)? { get set }
+    func start()
+    func stop()
 }
 
-final class RideTracker: NSObject, ObservableObject, CLLocationManagerDelegate {
-    @Published private(set) var online = true
-    @Published private(set) var lastFix: CLLocationCoordinate2D?
-    @Published private(set) var inTransit = false
-    @Published var mockMode = false { didSet { if mockMode { stopSensors() } else { startSensors() } } }
-
-    var onEvent: ((RideEvent) -> Void)?
-
-    private(set) var stops: [Station] = []
-    private(set) var index = 0
-    private(set) var direction = 1
+/// The real phone: CoreLocation for where you are, NWPathMonitor for whether you have signal.
+final class LiveRideSource: NSObject, RideSource, CLLocationManagerDelegate {
+    var onSignal: ((RideSignal) -> Void)?
     private let location = CLLocationManager()
     private var monitor: NWPathMonitor?
-    private var arriveTimer: Timer?
 
     override init() {
         super.init()
         location.delegate = self
         location.desiredAccuracy = kCLLocationAccuracyNearestTenMeters
-        location.activityType = .otherNavigation
+        location.distanceFilter = 25
     }
 
-    func begin(stops: [Station], startIndex: Int, direction: Int) {
-        self.stops = stops; index = startIndex; self.direction = direction; inTransit = false
-        if !mockMode { startSensors() }
-    }
-
-    func end() { stopSensors(); stops = [] }
-
-    // MARK: sensors
-
-    func startSensors() {
+    func start() {
         location.requestWhenInUseAuthorization()
-        location.allowsBackgroundLocationUpdates = location.authorizationStatus == .authorizedAlways
         location.startUpdatingLocation()
-        if monitor == nil {
-            let m = NWPathMonitor()
-            m.pathUpdateHandler = { [weak self] path in
-                DispatchQueue.main.async { self?.handle(.network(online: path.status == .satisfied)) }
-            }
-            m.start(queue: DispatchQueue(label: "net"))
-            monitor = m
+        let m = NWPathMonitor()
+        m.pathUpdateHandler = { [weak self] path in
+            let up = path.status == .satisfied
+            DispatchQueue.main.async { self?.onSignal?(.network(up)) }
         }
+        m.start(queue: DispatchQueue(label: "standclear.net"))
+        monitor = m
     }
 
-    func stopSensors() {
+    func stop() {
         location.stopUpdatingLocation()
-        monitor?.cancel(); monitor = nil
+        monitor?.cancel()
+        monitor = nil
     }
 
     func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
-        guard !mockMode, let l = locations.last, l.horizontalAccuracy >= 0, l.horizontalAccuracy < 200 else { return }
-        handle(.location(lat: l.coordinate.latitude, lon: l.coordinate.longitude, speed: l.speed))
+        guard let l = locations.last else { return }
+        onSignal?(.location(lat: l.coordinate.latitude, lon: l.coordinate.longitude, accuracy: l.horizontalAccuracy))
     }
 
-    func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
-        if !mockMode && !stops.isEmpty { manager.startUpdatingLocation() }
-    }
-
-    // MARK: the logic
-
-    func handle(_ signal: RideSignal) {
-        guard !stops.isEmpty else {
-            if case .network(let on) = signal { online = on }
-            if case .location(let lat, let lon, _) = signal { lastFix = .init(latitude: lat, longitude: lon) }
-            return
-        }
-        switch signal {
-        case .network(let on):
-            let was = online
-            online = on
-            if was && !on && !inTransit { depart() }
-            if !was && on && inTransit {
-                // Signal's back: we're at the next stop, unless GPS says otherwise in the next few seconds.
-                arriveTimer?.invalidate()
-                arriveTimer = Timer.scheduledTimer(withTimeInterval: 4, repeats: false) { [weak self] _ in
-                    guard let self, self.inTransit else { return }
-                    self.arrive(self.index + self.direction)
-                }
-            }
-        case .location(let lat, let lon, let speed):
-            lastFix = .init(latitude: lat, longitude: lon)
-            let near = stops.indices.map { ($0, distance(lat, lon, stops[$0].lat, stops[$0].lon)) }.min { $0.1 < $1.1 }
-            guard let (i, d) = near else { return }
-            let slow = speed < 4   // also true when unknown (-1)
-            if inTransit && d < 150 && slow && i != index && isAhead(i) {
-                arrive(i)
-            } else if !inTransit && distance(lat, lon, stops[index].lat, stops[index].lon) > 350 {
-                depart()
-            }
-        case .forceDepart:
-            if !inTransit { depart() }
-        case .forceArrive(let id):
-            if !inTransit { depart() }
-            let target = id.flatMap { sid in stops.firstIndex { $0.id == sid } } ?? (index + direction)
-            arrive(target)
-        }
-    }
-
-    private func isAhead(_ i: Int) -> Bool { direction > 0 ? i > index : i < index }
-
-    private func depart() {
-        guard stops.indices.contains(index + direction) else { return }   // end of the line
-        inTransit = true
-        onEvent?(.departed(fromIndex: index))
-    }
-
-    private func arrive(_ i: Int) {
-        arriveTimer?.invalidate()
-        let clamped = max(0, min(stops.count - 1, i))
-        guard inTransit else { return }
-        inTransit = false
-        index = clamped
-        onEvent?(.arrived(atIndex: clamped))
-    }
+    func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {}
 }
 
-/// Meters between two coordinates (haversine). Good enough for "am I at this station".
-func distance(_ lat1: Double, _ lon1: Double, _ lat2: Double, _ lon2: Double) -> Double {
-    let r = 6_371_000.0, p = Double.pi / 180
-    let dLat = (lat2 - lat1) * p, dLon = (lon2 - lon1) * p
-    let a = sin(dLat / 2) * sin(dLat / 2) + cos(lat1 * p) * cos(lat2 * p) * sin(dLon / 2) * sin(dLon / 2)
-    return 2 * r * asin(min(1, sqrt(a)))
+/// Fake phone for testing on the couch. The debug panel calls `send`.
+final class MockRideSource: RideSource {
+    var onSignal: ((RideSignal) -> Void)?
+    func start() {}
+    func stop() {}
+    func send(_ signal: RideSignal) { onSignal?(signal) }
+}
+
+/// Turns signals into "doors closed" / "doors open at station X" for the game.
+///
+/// Underground: losing signal means you're in a tunnel, getting it back means you're at the next stop.
+/// Above ground (elevated lines): GPS fixes near a station move you there directly.
+@MainActor
+final class RideTracker: ObservableObject {
+    @Published private(set) var online = true
+    @Published private(set) var lastFix: CLLocation?
+    @Published private(set) var usingMock = false
+    @Published var autoRide = false { didSet { autoRideChanged() } }
+
+    /// Ignore signal blips shorter than this (live only). Mock mode moves instantly.
+    var minTunnelSeconds: TimeInterval { usingMock ? 0 : 20 }
+    let arriveRadius: CLLocationDistance = 250
+
+    weak var game: Game?
+    private var source: RideSource = LiveRideSource()
+    let mock = MockRideSource()
+    private var tunnelStarted: Date?
+    private var autoTimer: Timer?
+
+    func start(game: Game) {
+        self.game = game
+        attach(LiveRideSource())
+    }
+
+    func useMock(_ on: Bool) {
+        guard on != usingMock else { return }
+        usingMock = on
+        attach(on ? mock : LiveRideSource())
+        if !on { autoRide = false }
+    }
+
+    private func attach(_ s: RideSource) {
+        source.stop()
+        source.onSignal = nil
+        source = s
+        s.onSignal = { [weak self] signal in
+            Task { @MainActor in self?.handle(signal) }
+        }
+        s.start()
+    }
+
+    func handle(_ signal: RideSignal) {
+        guard let game else { return }
+        switch signal {
+        case .network(let up):
+            guard up != online else { return }
+            online = up
+            if !up, game.phase == .station {
+                tunnelStarted = Date()
+                game.depart()
+            } else if up, game.phase == .tunnel {
+                let elapsed = Date().timeIntervalSince(tunnelStarted ?? .distantPast)
+                if elapsed >= minTunnelSeconds { game.arrive() }
+            }
+
+        case .location(let lat, let lon, let accuracy):
+            let fix = CLLocation(latitude: lat, longitude: lon)
+            lastFix = fix
+            guard accuracy <= 200, let line = game.line, let idx = nearestIndex(on: line, to: fix) else { return }
+            if game.phase == .tunnel {
+                game.arrive(at: idx)
+            } else if game.phase == .station, idx != game.stationIndex {
+                // Above ground the signal never drops, so moving between stations is the ride.
+                game.depart()
+                game.arrive(at: idx)
+            }
+        }
+    }
+
+    /// Index of the closest station on `line` within the arrival radius.
+    func nearestIndex(on line: Line, to fix: CLLocation, radius: CLLocationDistance? = nil) -> Int? {
+        let r = radius ?? arriveRadius
+        let best = line.stations.indices.min { a, b in
+            distance(line.stations[a], fix) < distance(line.stations[b], fix)
+        }
+        guard let best, distance(line.stations[best], fix) <= r else { return nil }
+        return best
+    }
+
+    /// For boarding: the closest station on any line, if you're near one.
+    func nearestStation(radius: CLLocationDistance = 600) -> (Line, Int)? {
+        guard let fix = lastFix else { return nil }
+        var best: (Line, Int, CLLocationDistance)?
+        for line in Line.all {
+            for (i, s) in line.stations.enumerated() {
+                let d = distance(s, fix)
+                if d <= radius, d < (best?.2 ?? .infinity) { best = (line, i, d) }
+            }
+        }
+        return best.map { ($0.0, $0.1) }
+    }
+
+    private func distance(_ s: Station, _ fix: CLLocation) -> CLLocationDistance {
+        CLLocation(latitude: s.lat, longitude: s.lon).distance(from: fix)
+    }
+
+    // MARK: - Mock helpers
+
+    func mockTeleport(to index: Int) {
+        guard let s = game?.line?.stations[index] else { return }
+        mock.send(.location(lat: s.lat, lon: s.lon, accuracy: 10))
+    }
+
+    /// Ride the line by itself: 6 s in each tunnel, 6 s at each station.
+    private func autoRideChanged() {
+        autoTimer?.invalidate()
+        guard autoRide else { return }
+        useMock(true)
+        autoTimer = Timer.scheduledTimer(withTimeInterval: 6, repeats: true) { [weak self] _ in
+            Task { @MainActor in
+                guard let self, let game = self.game else { return }
+                switch game.phase {
+                case .station: self.mock.send(.network(false))
+                case .tunnel: self.mock.send(.network(true))
+                default: self.autoRide = false
+                }
+            }
+        }
+    }
 }

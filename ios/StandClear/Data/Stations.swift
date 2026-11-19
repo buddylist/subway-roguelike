@@ -1,5 +1,5 @@
-// Generated from MTA open data (data.ny.gov "MTA Subway Stations"). Stops are listed in north-to-south order.
-// To add a line, add its stops here in order. Traits not listed get rolled from the station name.
+// Generated from MTA open data (data.ny.gov "MTA Subway Stations"). Stops are in north-to-south order.
+// To add a line, add its stops here in order. Stations without a hand-picked trait get one rolled from their name.
 
 import Foundation
 
