@@ -28,4 +28,4 @@ targets:
         UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait]
         NSLocationWhenInUseUsageDescription: Stand Clear uses your location to figure out which station you're at.
         # The Modal backend URL (see backend/README). Leave as is to play against bots only.
-        StandClearAPI: https://YOUR-MODAL-URL.modal.run
+        StandClearAPI: https://sighrobot--stand-clear-api.us-east.modal.run
