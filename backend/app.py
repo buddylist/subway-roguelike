@@ -26,6 +26,7 @@ MAX_TEAM = 5
 @modal.asgi_app()
 def api():
     from fastapi import FastAPI, HTTPException, Request
+    from fastapi.responses import HTMLResponse
 
     web = FastAPI(title="Stand Clear")
 
@@ -86,6 +87,21 @@ def api():
         runs.append(r)
         board["runs"] = runs[-200:]
         return {"ok": True}
+
+    @web.get("/", response_class=HTMLResponse)
+    def home():
+        """A tiny status page, so the bare URL isn't a 404."""
+        import html
+        runs = list(reversed(board.get("runs", [])))[:15]
+        turf = {k[5:]: v for k, v in board.items() if k.startswith("turf:")}
+        rows = "".join(f"<li>{'🏁' if r.get('madeIt') else '💀'} <b>{html.escape(str(r.get('player','?')))}</b> on the {html.escape(str(r.get('line','?')))}: "
+                       f"{r.get('wins',0)} wins, {r.get('stops',0)} stops, ended at {html.escape(str(r.get('endedAt','?')))}</li>" for r in runs) or "<li>No runs yet. Go ride.</li>"
+        held = "".join(f"<li>{html.escape(line)} {html.escape(st)}: 👑 {html.escape(v['player'])}</li>" for line, t in turf.items() for st, v in t.items()) or "<li>Nobody holds anything yet.</li>"
+        return f"""<!doctype html><meta name=viewport content="width=device-width"><title>Stand Clear</title>
+<body style="background:#111;color:#eee;font:16px Helvetica;max-width:560px;margin:auto;padding:16px">
+<h1>🚇 Stand Clear backend</h1><p>It's up. Ghost crews, station turf and runs live here.
+API docs: <a style="color:#fccc0a" href="/docs">/docs</a></p>
+<h2>Recent runs</h2><ul>{rows}</ul><h2>Turf</h2><ul>{held}</ul></body>"""
 
     @web.get("/runs")
     def get_runs(limit: int = 20):
